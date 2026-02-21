@@ -3,19 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home Page</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Home - E-Ink Helper</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
 </head>
 <body>
-    <nav>
-        <ul>
-            <li><a href="#">Home</a></li>
-            <li><a href="#">About</a></li>
-            <li><a href="#">Services</a></li>
-            <li><a href="#">Contact</a></li>
-        </ul>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">E-Ink Helper</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="#">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="timer.html">Timer</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
     </nav>
-    <h1>Welcome to the E-Ink Helper</h1>
-    <p>Your guide to everything e-ink!</p>
+
+    <header class="bg-primary text-white text-center py-5">
+        <h1>Welcome to E-Ink Helper</h1>
+        <p>Your go-to solution for efficient e-ink displays.</p>
+    </header>
+
+    <section class="container my-5">
+        <h2>Features</h2>
+        <ul class="list-group">
+            <li class="list-group-item">Feature 1: Easy to use interface</li>
+            <li class="list-group-item">Feature 2: Timers for quick tasks</li>
+            <li class="list-group-item">Feature 3: Customizable settings</li>
+            <li class="list-group-item">Feature 4: Multi-device sync</li>
+        </ul>
+    </section>
+
+    <div class="text-center mb-5">
+        <a href="timer.html" class="btn btn-success btn-lg">Go to Timer</a>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
