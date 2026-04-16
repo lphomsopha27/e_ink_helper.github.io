@@ -4,63 +4,117 @@
   <meta charset="UTF-8">
   <title>E-Ink Timer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
-    rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-  
+
 <body>
   <!-- Nav Bar -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="#">E-Ink Helper</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link active" aria-current="page" href="#">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="timer.html">Timer</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+  <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">E-Ink Helper</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav">
+          <li class="nav-item"><a class="nav-link active" href="#">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="timer.html">Timer</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
 
   <!-- Timer controls -->
-<div class="container py-5">
-  <div class="card shadow p-4">
-    <h2 class="text-center mb-4">E-Ink Timer</h2>
+  <div class="container py-5">
+    <div class="card shadow p-4">
+      <h2 class="text-center mb-4">E-Ink Timer</h2>
 
-    <div class="mb-3">
-      <label class="form-label">Duration (seconds)</label>
-      <input type="number" id="seconds" class="form-control" value="10">
-    </div>
+      <div class="mb-3">
+        <label class="form-label">Duration (seconds)</label>
+        <input type="number" id="seconds" class="form-control" value="10" min="1">
+      </div>
 
-    <div class="d-grid gap-2">
-      <button class="btn btn-primary" onclick="connect()">Connect Device</button>
-      <button class="btn btn-success" onclick="startTimer()">Start Timer</button>
-      <button class="btn btn-danger" onclick="clearDisplay()">Clear Display</button>
-    </div>
+      <div class="d-grid gap-2">
+        <button class="btn btn-primary" id="connectBtn" onclick="connect()">Connect Device</button>
+        <button class="btn btn-success" id="startBtn" onclick="startTimer()" disabled>Start Timer</button>
+        <button class="btn btn-danger"  id="clearBtn"  onclick="clearDisplay()" disabled>Clear Display</button>
+      </div>
 
-    <div class="mt-3 text-center">
-      <span id="status" class="text-muted">Not connected</span>
+      <div class="mt-3 text-center">
+        <span id="status" class="text-muted">Not connected</span>
+      </div>
+
+      <!-- Countdown shown while timer is running -->
+      <div class="mt-3 text-center" id="countdownArea" style="display:none;">
+        <span id="countdown" class="fs-1 fw-bold text-success"></span>
+      </div>
     </div>
   </div>
-</div>
 
 <script>
 let device;
 let characteristic;
+let timerRunning = false;
+let countdownInterval = null;
 
 const SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0";
-const CHAR_UUID = "12345678-1234-5678-1234-56789abcdef1";
+const CHAR_UUID    = "12345678-1234-5678-1234-56789abcdef1";
+
+function setStatus(msg, colour) {
+  const el = document.getElementById("status");
+  el.innerText = msg;
+  el.className = colour || "text-muted";
+}
+
+function setTimerRunning(running) {
+  timerRunning = running;
+  document.getElementById("startBtn").disabled = running;
+  document.getElementById("clearBtn").disabled = !document.getElementById("startBtn").dataset.connected;
+
+  if (running) {
+    document.getElementById("startBtn").innerText = "Timer Running…";
+  } else {
+    document.getElementById("startBtn").innerText = "Start Timer";
+    stopCountdown();
+  }
+}
+
+function startCountdown(seconds) {
+  const area = document.getElementById("countdownArea");
+  const display = document.getElementById("countdown");
+  let remaining = seconds;
+  area.style.display = "block";
+  display.innerText = remaining + "s";
+
+  countdownInterval = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) {
+      display.innerText = "Done!";
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+      // Re-enable start after a short pause so display finishes
+      setTimeout(() => {
+        setTimerRunning(false);
+        setStatus("Timer finished — ready", "text-success");
+      }, 1500);
+    } else {
+      display.innerText = remaining + "s";
+    }
+  }, 1000);
+}
+
+function stopCountdown() {
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
+  document.getElementById("countdownArea").style.display = "none";
+  document.getElementById("countdown").innerText = "";
+}
 
 async function connect() {
   try {
+    setStatus("Connecting…", "text-warning");
     device = await navigator.bluetooth.requestDevice({
       filters: [{ services: [SERVICE_UUID] }]
     });
@@ -69,33 +123,62 @@ async function connect() {
     const service = await server.getPrimaryService(SERVICE_UUID);
     characteristic = await service.getCharacteristic(CHAR_UUID);
 
-    document.getElementById("status").innerText = "Connected";
+    // Mark connected
+    document.getElementById("startBtn").dataset.connected = "true";
+    document.getElementById("startBtn").disabled = false;
+    document.getElementById("clearBtn").disabled = false;
+    document.getElementById("connectBtn").innerText = "Reconnect";
+    setStatus("Connected", "text-success");
+
+    // Handle unexpected disconnect
+    device.addEventListener("gattserverdisconnected", () => {
+      characteristic = null;
+      document.getElementById("startBtn").dataset.connected = "";
+      document.getElementById("startBtn").disabled = true;
+      document.getElementById("clearBtn").disabled = true;
+      setTimerRunning(false);
+      setStatus("Disconnected", "text-danger");
+    });
+
   } catch (error) {
     console.error(error);
-    alert("Connection failed");
+    setStatus("Connection failed", "text-danger");
   }
 }
 
 async function startTimer() {
-  if (!characteristic) {
-    alert("Not connected");
-    return;
-  }
+  if (!characteristic) { alert("Not connected"); return; }
+  if (timerRunning) return;  // hard block — button should already be disabled
 
-  const seconds = document.getElementById("seconds").value;
-  const command = `START:${seconds}`;
-  await characteristic.writeValue(new TextEncoder().encode(command));
+  const seconds = parseInt(document.getElementById("seconds").value);
+  if (isNaN(seconds) || seconds <= 0) { alert("Enter a valid duration"); return; }
+
+  try {
+    await characteristic.writeValue(new TextEncoder().encode(`START:${seconds}`));
+    setTimerRunning(true);
+    setStatus(`Timer running: ${seconds}s`, "text-success");
+    startCountdown(seconds);
+  } catch (e) {
+    console.error(e);
+    setStatus("Failed to send command", "text-danger");
+  }
 }
 
 async function clearDisplay() {
-  if (!characteristic) {
-    alert("Not connected");
-    return;
-  }
+  if (!characteristic) { alert("Not connected"); return; }
 
-  await characteristic.writeValue(new TextEncoder().encode("CLEAR"));
+  try {
+    // Kill any running countdown on the UI side
+    setTimerRunning(false);
+    await characteristic.writeValue(new TextEncoder().encode("CLEAR"));
+    setStatus("Display cleared", "text-muted");
+  } catch (e) {
+    console.error(e);
+    setStatus("Failed to send command", "text-danger");
+  }
 }
 </script>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
