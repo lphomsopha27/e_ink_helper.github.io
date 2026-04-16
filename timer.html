@@ -79,29 +79,31 @@ function setTimerRunning(running) {
   }
 }
 
-function startCountdown(seconds) {
-  const area = document.getElementById("countdownArea");
-  const display = document.getElementById("countdown");
-  let remaining = seconds;
-  area.style.display = "block";
-  display.innerText = remaining + "s";
+// Stupid claude
+  
+// function startCountdown(seconds) {
+//   const area = document.getElementById("countdownArea");
+//   const display = document.getElementById("countdown");
+//   let remaining = seconds;
+//   area.style.display = "block";
+//   display.innerText = remaining + "s";
 
-  countdownInterval = setInterval(() => {
-    remaining--;
-    if (remaining <= 0) {
-      display.innerText = "Done!";
-      clearInterval(countdownInterval);
-      countdownInterval = null;
-      // Re-enable start after a short pause so display finishes
-      setTimeout(() => {
-        setTimerRunning(false);
-        setStatus("Timer finished — ready", "text-success");
-      }, 1500);
-    } else {
-      display.innerText = remaining + "s";
-    }
-  }, 1000);
-}
+//   countdownInterval = setInterval(() => {
+//     remaining--;
+//     if (remaining <= 0) {
+//       display.innerText = "Done!";
+//       clearInterval(countdownInterval);
+//       countdownInterval = null;
+//       // Re-enable start after a short pause so display finishes
+//       setTimeout(() => {
+//         setTimerRunning(false);
+//         setStatus("Timer finished — ready", "text-success");
+//       }, 1500);
+//     } else {
+//       display.innerText = remaining + "s";
+//     }
+//   }, 1000);
+// }
 
 function stopCountdown() {
   if (countdownInterval) {
@@ -157,7 +159,7 @@ async function startTimer() {
     await characteristic.writeValue(new TextEncoder().encode(`START:${seconds}`));
     setTimerRunning(true);
     setStatus(`Timer running: ${seconds}s`, "text-success");
-    startCountdown(seconds);
+    // startCountdown(seconds);
   } catch (e) {
     console.error(e);
     setStatus("Failed to send command", "text-danger");
