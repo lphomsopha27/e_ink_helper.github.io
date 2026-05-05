@@ -87,6 +87,42 @@ function setTimerRunning(running) {
   document.getElementById("startBtn").innerText = running ? "Timer Running…" : "Start Timer";
 }
 
+let keepAliveInterval = null;
+
+function startKeepAlive() {
+  stopKeepAlive();
+  // Send a harmless ping every 2 seconds to keep BLE connection alive
+  keepAliveInterval = setInterval(async () => {
+    if (!characteristic) { stopKeepAlive(); return; }
+    try {
+      await characteristic.writeValue(new TextEncoder().encode("PING"));
+    } catch (e) {
+      console.warn("Keep-alive ping failed:", e);
+      stopKeepAlive();
+    }
+  }, 2000);
+}
+
+function stopKeepAlive() {
+  if (keepAliveInterval) {
+    clearInterval(keepAliveInterval);
+    keepAliveInterval = null;
+  }
+}
+
+async function connectToDevice() {
+  const server  = await device.gatt.connect();
+  const service = await server.getPrimaryService(SERVICE_UUID);
+  characteristic = await service.getCharacteristic(CHAR_UUID);
+  connected = true;
+
+  document.getElementById("startBtn").disabled = false;
+  document.getElementById("clearBtn").disabled = false;
+  document.getElementById("connectBtn").innerText = "Reconnect";
+  setStatus("Connected", "text-success");
+  startKeepAlive();
+}
+
 async function connect() {
   try {
     setStatus("Connecting…", "text-warning");
@@ -96,15 +132,7 @@ async function connect() {
       filters: [{ services: [SERVICE_UUID] }]
     });
 
-    const server  = await device.gatt.connect();
-    const service = await server.getPrimaryService(SERVICE_UUID);
-    characteristic = await service.getCharacteristic(CHAR_UUID);
-    connected = true;
-
-    document.getElementById("startBtn").disabled = false;
-    document.getElementById("clearBtn").disabled = false;
-    document.getElementById("connectBtn").innerText = "Reconnect";
-    setStatus("Connected", "text-success");
+    await connectToDevice();
 
     const code = generateCode();
     document.getElementById("connectCode").innerText = code;
@@ -120,14 +148,28 @@ async function connect() {
       document.getElementById("codeArea").style.display = "none";
     }, 6000);
 
-    device.addEventListener("gattserverdisconnected", () => {
+    device.addEventListener("gattserverdisconnected", async () => {
       characteristic = null;
       connected = false;
+      stopKeepAlive();
       document.getElementById("startBtn").disabled = true;
       document.getElementById("clearBtn").disabled = true;
       document.getElementById("codeArea").style.display = "none";
       setTimerRunning(false);
-      setStatus("Disconnected", "text-danger");
+      setStatus("Reconnecting…", "text-warning");
+
+      // Auto-reconnect loop
+      for (let i = 0; i < 5; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+          await connectToDevice();
+          setStatus("Reconnected", "text-success");
+          return;
+        } catch (e) {
+          console.warn(`Reconnect attempt ${i + 1} failed:`, e);
+        }
+      }
+      setStatus("Disconnected — tap Reconnect", "text-danger");
     });
 
   } catch (error) {
