@@ -136,18 +136,23 @@ async function connect() {
     characteristic = await service.getCharacteristic(CHAR_UUID);
     connected = true;
 
+    // Mark connected immediately — before sending the code
+    document.getElementById("startBtn").disabled = false;
+    document.getElementById("clearBtn").disabled = false;
+    document.getElementById("connectBtn").innerText = "Reconnect";
+    setStatus("Connected", "text-success");
+
     // Generate and show code on both sides
     const code = generateCode();
     document.getElementById("connectCode").innerText = code;
     document.getElementById("codeArea").style.display = "block";
 
-    // Send code to Pi — it will display on e-ink for 5 seconds
-    await characteristic.writeValue(new TextEncoder().encode(`CONNECT:${code}`));
-
-    document.getElementById("startBtn").disabled = false;
-    document.getElementById("clearBtn").disabled = false;
-    document.getElementById("connectBtn").innerText = "Reconnect";
-    setStatus("Connected", "text-success");
+    // Send code to Pi in its own try/catch — a slow e-ink init won't kill the connection
+    try {
+      await characteristic.writeValue(new TextEncoder().encode(`CONNECT:${code}`));
+    } catch (codeErr) {
+      console.warn("Code write failed (non-fatal):", codeErr);
+    }
 
     // Hide the code after 6 seconds (Pi clears after 5)
     setTimeout(() => {
