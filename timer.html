@@ -24,9 +24,15 @@
     <div class="card shadow p-4">
       <h2 class="text-center mb-4">E-Ink Timer</h2>
 
-      <div class="mb-3">
-        <label class="form-label">Duration (seconds)</label>
-        <input type="number" id="seconds" class="form-control" value="10" min="1">
+      <div class="row mb-3">
+        <div class="col">
+          <label class="form-label">Hours</label>
+          <input type="number" id="hours" class="form-control" value="0" min="0">
+        </div>
+        <div class="col">
+          <label class="form-label">Minutes</label>
+          <input type="number" id="minutes" class="form-control" value="5" min="0" max="59">
+        </div>
       </div>
 
       <div class="d-grid gap-2">
@@ -45,11 +51,6 @@
         <p class="mb-1 text-muted small">Confirm this code on the device:</p>
         <span id="connectCode" class="fs-1 fw-bold font-monospace text-primary"></span>
       </div>
-
-      <!-- Countdown shown while timer is running -->
-      <div class="mt-3 text-center" id="countdownArea" style="display:none;">
-        <span id="countdown" class="fs-1 fw-bold text-success"></span>
-      </div>
     </div>
   </div>
 
@@ -57,7 +58,6 @@
 let device;
 let characteristic;
 let timerRunning = false;
-let countdownInterval = null;
 let connected = false;
 
 const SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0";
@@ -78,7 +78,6 @@ function setStatus(msg, colour) {
 }
 
 function generateCode() {
-  // 4-digit numeric code, zero-padded
   return String(Math.floor(Math.random() * 10000)).padStart(4, "0");
 }
 
@@ -86,40 +85,6 @@ function setTimerRunning(running) {
   timerRunning = running;
   document.getElementById("startBtn").disabled = running || !connected;
   document.getElementById("startBtn").innerText = running ? "Timer Running…" : "Start Timer";
-  if (!running) stopCountdown();
-}
-
-function startCountdown(seconds) {
-  const area    = document.getElementById("countdownArea");
-  const display = document.getElementById("countdown");
-  let remaining = seconds;
-  area.style.display = "block";
-  display.innerText  = remaining + "s";
-
-  countdownInterval = setInterval(() => {
-    remaining--;
-    if (remaining <= 0) {
-      clearInterval(countdownInterval);
-      countdownInterval = null;
-      display.innerText = "Done!";
-      setTimeout(() => {
-        setTimerRunning(false);
-        stopCountdown();
-        setStatus("");   // clear status text when timer finishes
-      }, 1500);
-    } else {
-      display.innerText = remaining + "s";
-    }
-  }, 1000);
-}
-
-function stopCountdown() {
-  if (countdownInterval) {
-    clearInterval(countdownInterval);
-    countdownInterval = null;
-  }
-  document.getElementById("countdownArea").style.display = "none";
-  document.getElementById("countdown").innerText = "";
 }
 
 async function connect() {
@@ -131,30 +96,26 @@ async function connect() {
       filters: [{ services: [SERVICE_UUID] }]
     });
 
-    const server = await device.gatt.connect();
+    const server  = await device.gatt.connect();
     const service = await server.getPrimaryService(SERVICE_UUID);
     characteristic = await service.getCharacteristic(CHAR_UUID);
     connected = true;
 
-    // Mark connected immediately — before sending the code
     document.getElementById("startBtn").disabled = false;
     document.getElementById("clearBtn").disabled = false;
     document.getElementById("connectBtn").innerText = "Reconnect";
     setStatus("Connected", "text-success");
 
-    // Generate and show code on both sides
     const code = generateCode();
     document.getElementById("connectCode").innerText = code;
     document.getElementById("codeArea").style.display = "block";
 
-    // Send code to Pi in its own try/catch — a slow e-ink init won't kill the connection
     try {
       await characteristic.writeValue(new TextEncoder().encode(`CONNECT:${code}`));
-    } catch (codeErr) {
-      console.warn("Code write failed (non-fatal):", codeErr);
+    } catch (e) {
+      console.warn("Code write failed (non-fatal):", e);
     }
 
-    // Hide the code after 6 seconds (Pi clears after 5)
     setTimeout(() => {
       document.getElementById("codeArea").style.display = "none";
     }, 6000);
@@ -178,14 +139,17 @@ async function connect() {
 async function startTimer() {
   if (!characteristic || timerRunning) return;
 
-  const seconds = parseInt(document.getElementById("seconds").value);
-  if (isNaN(seconds) || seconds <= 0) { alert("Enter a valid duration"); return; }
+  const hours   = parseInt(document.getElementById("hours").value)   || 0;
+  const minutes = parseInt(document.getElementById("minutes").value) || 0;
+  const seconds = (hours * 3600) + (minutes * 60);
+
+  if (seconds <= 0) { alert("Please set a duration greater than zero"); return; }
 
   try {
     await characteristic.writeValue(new TextEncoder().encode(`START:${seconds}`));
     setTimerRunning(true);
-    setStatus(`Timer running: ${seconds}s`, "text-success");
-    startCountdown(seconds);
+    const label = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+    setStatus(`Timer running: ${label}`, "text-success");
   } catch (e) {
     console.error(e);
     setStatus("Failed to send command", "text-danger");
@@ -197,7 +161,7 @@ async function clearDisplay() {
 
   try {
     setTimerRunning(false);
-    setStatus("");   // clear status immediately on manual clear
+    setStatus("");
     await characteristic.writeValue(new TextEncoder().encode("CLEAR"));
   } catch (e) {
     console.error(e);
