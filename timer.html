@@ -88,19 +88,14 @@ function setTimerRunning(running) {
 }
 
 let keepAliveInterval = null;
+let sendingCommand = false;
 
-function startKeepAlive() {
-  stopKeepAlive();
-  // Send a harmless ping every 2 seconds to keep BLE connection alive
-  keepAliveInterval = setInterval(async () => {
-    if (!characteristic) { stopKeepAlive(); return; }
-    try {
-      await characteristic.writeValue(new TextEncoder().encode("PING"));
-    } catch (e) {
-      console.warn("Keep-alive ping failed:", e);
-      stopKeepAlive();
-    }
-  }, 2000);
+function startKeepAlive() { /* no-op — removed, was causing disconnects */ }
+function stopKeepAlive() {
+  if (keepAliveInterval) {
+    clearInterval(keepAliveInterval);
+    keepAliveInterval = null;
+  }
 }
 
 function stopKeepAlive() {
@@ -188,6 +183,7 @@ async function startTimer() {
   if (seconds <= 0) { alert("Please set a duration greater than zero"); return; }
 
   try {
+    sendingCommand = true;
     await characteristic.writeValue(new TextEncoder().encode(`START:${seconds}`));
     setTimerRunning(true);
     const label = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
@@ -195,6 +191,8 @@ async function startTimer() {
   } catch (e) {
     console.error(e);
     setStatus("Failed to send command", "text-danger");
+  } finally {
+    sendingCommand = false;
   }
 }
 
@@ -202,12 +200,15 @@ async function clearDisplay() {
   if (!characteristic) return;
 
   try {
+    sendingCommand = true;
     setTimerRunning(false);
     setStatus("");
     await characteristic.writeValue(new TextEncoder().encode("CLEAR"));
   } catch (e) {
     console.error(e);
     setStatus("Failed to send command", "text-danger");
+  } finally {
+    sendingCommand = false;
   }
 }
 </script>
