@@ -855,7 +855,7 @@ async function connect() {
     const code = generateCode();
     document.getElementById('connectCode').textContent = code;
     document.getElementById('codeArea').style.display = 'block';
-    setTimeout(() => { document.getElementById('codeArea').style.display = 'none'; }, 6000);
+    // Code stays visible until session starts — hidden in startPomodoro()
 
     await sendCommand(`CONNECT:${code}`);
     readLoop();
@@ -910,6 +910,7 @@ async function startPomodoro() {
   sessionRunning = true;
 
   document.getElementById('startBtn').disabled = true;
+  document.getElementById('codeArea').style.display = 'none';
   document.getElementById('runningPanel').classList.add('visible');
 
   runPhase();
