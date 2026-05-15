@@ -364,9 +364,7 @@ async function connect() {
     const code = generateCode();
     document.getElementById("connectCode").textContent = code;
     document.getElementById("codeArea").style.display = "block";
-    setTimeout(() => {
-      document.getElementById("codeArea").style.display = "none";
-    }, 6000);
+    // Code stays visible until timer starts — hidden in startTimer()
 
     await sendCommand(`CONNECT:${code}`);
     readLoop();
@@ -386,6 +384,7 @@ async function startTimer() {
   if (seconds <= 0) { alert("Set a duration greater than zero"); return; }
 
   await sendCommand(`START:${seconds}`);
+  document.getElementById("codeArea").style.display = "none";
   setTimerRunning(true);
   const label = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
   setStatus(`Session running · ${label}`, "success");
