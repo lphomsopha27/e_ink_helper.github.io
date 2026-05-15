@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pomodoro — E-Ink Helper</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Inconsolata:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #141412;
+      --surface:   #1c1c1a;
+      --surface2:  #222220;
+      --border:    #2a2a26;
+      --text:      #e8e4dc;
+      --muted:     #6b6860;
+      --accent:    #c9a96e;
+      --accent-dim:#7a6340;
+      --success:   #7eb89a;
+      --danger:    #c97a6e;
+      --warning:   #c9b96e;
+      --work:      #c9a96e;
+      --short:     #7eb89a;
+      --long:      #9e8ec9;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Inconsolata', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      animation: fadein 1.2s ease forwards;
+    }
+
+    @keyframes fadein { to { opacity: 1; } }
+
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 40px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-brand {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 32px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover,
+    .nav-links a.active { color: var(--accent); }
+
+    .page {
+      flex: 1;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 48px 24px;
+    }
+
+    .layout {
+      width: 100%;
+      max-width: 720px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* ── Step system ── */
+    .step {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      transition: border-color 0.3s;
+    }
+    .step.active { border-color: var(--accent-dim); }
+    .step.done   { border-color: var(--border); opacity: 0.7; }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 20px 28px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .step-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      flex-shrink: 0;
+      transition: border-color 0.3s, color 0.3s, background 0.3s;
+    }
+    .step.active .step-num {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .step.done .step-num {
+      background: var(--accent-dim);
+      border-color: var(--accent-dim);
+      color: var(--bg);
+    }
+
+    .step-title {
+      flex: 1;
+    }
+    .step-title h3 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 18px;
+      font-weight: 400;
+      color: var(--text);
+    }
+    .step-title p {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      margin-top: 2px;
+    }
+
+    .step-summary {
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 0.06em;
+      margin-left: auto;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .step.done .step-summary { opacity: 1; }
+
+    .step-body {
+      display: none;
+      padding: 0 28px 28px 28px;
+      flex-direction: column;
+      gap: 20px;
+      animation: slidein 0.25s ease;
+    }
+    .step.active .step-body { display: flex; }
+
+    @keyframes slidein {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Preset chips ── */
+    .presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .preset-chip {
+      padding: 8px 18px;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      font-family: 'Inconsolata', monospace;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s, background 0.2s;
+    }
+    .preset-chip:hover {
+      border-color: var(--accent-dim);
+      color: var(--accent);
+    }
+    .preset-chip.selected {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(201,169,110,0.06);
+    }
+
+    /* ── Sliders ── */
+    .sliders {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .slider-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    .slider-label span:first-child {
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .slider-val {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 22px;
+      font-weight: 600;
+      transition: color 0.2s;
+    }
+    .slider-val.work  { color: var(--work); }
+    .slider-val.short { color: var(--short); }
+    .slider-val.long  { color: var(--long); }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 2px;
+      background: var(--border);
+      border-radius: 1px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    input[type=range]::-webkit-slider-thumb:active {
+      transform: scale(1.3);
+    }
+    #workRange::-webkit-slider-thumb  { background: var(--work); }
+    #shortRange::-webkit-slider-thumb { background: var(--short); }
+    #longRange::-webkit-slider-thumb  { background: var(--long); }
+
+    /* ── Cycle picker ── */
+    .cycle-picker {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .cycle-btn {
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      background: transparent;
+      color: var(--text);
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.2s, color 0.2s;
+      font-family: 'Inconsolata', monospace;
+    }
+    .cycle-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .cycle-display {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 48px;
+      font-weight: 600;
+      color: var(--accent);
+      min-width: 60px;
+      text-align: center;
+      line-height: 1;
+    }
+
+    .cycle-label {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+
+    /* ── Sequence preview ── */
+    .sequence-preview {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .seq-block {
+      padding: 5px 12px;
+      border-radius: 2px;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 500;
+      animation: popin 0.2s ease;
+    }
+    @keyframes popin {
+      from { transform: scale(0.8); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+    .seq-block.work  { background: rgba(201,169,110,0.12); color: var(--work);  border: 1px solid rgba(201,169,110,0.25); }
+    .seq-block.short { background: rgba(126,184,154,0.12); color: var(--short); border: 1px solid rgba(126,184,154,0.25); }
+    .seq-block.long  { background: rgba(158,142,201,0.12); color: var(--long);  border: 1px solid rgba(158,142,201,0.25); }
+
+    .seq-arrow {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .total-time {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      margin-top: 4px;
+    }
+
+    /* ── Connect step ── */
+    .connect-row {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 13px 20px;
+      border: 1px solid transparent;
+      border-radius: 2px;
+      font-family: 'Inconsolata', monospace;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: opacity 0.15s, background 0.15s;
+      width: 100%;
+    }
+    .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .btn:active:not(:disabled) { opacity: 0.7; }
+
+    .btn-primary  { background: var(--text); color: var(--bg); }
+    .btn-primary:hover:not(:disabled) { background: var(--accent); }
+
+    .btn-outline-success {
+      background: transparent;
+      color: var(--success);
+      border-color: var(--success);
+    }
+    .btn-outline-success:hover:not(:disabled) { background: rgba(126,184,154,0.08); }
+
+    .btn-outline-danger {
+      background: transparent;
+      color: var(--danger);
+      border-color: var(--danger);
+    }
+    .btn-outline-danger:hover:not(:disabled) { background: rgba(201,122,110,0.08); }
+
+    .btn-next {
+      background: transparent;
+      color: var(--accent);
+      border-color: var(--accent-dim);
+      margin-top: 4px;
+    }
+    .btn-next:hover:not(:disabled) { background: rgba(201,169,110,0.06); border-color: var(--accent); }
+
+    /* ── Status ── */
+    .status {
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      min-height: 16px;
+    }
+    .status.success { color: var(--success); }
+    .status.danger  { color: var(--danger); }
+    .status.warning { color: var(--warning); }
+
+    .code-area {
+      display: none;
+      text-align: center;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 20px;
+    }
+    .code-area p {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .code-area span {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 48px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.2em;
+    }
+
+    /* ── Running state ── */
+    .running-panel {
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .running-panel.visible { display: flex; }
+
+    .running-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 24px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .current-phase {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .phase-label {
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .phase-name {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 28px;
+      font-weight: 400;
+    }
+    .phase-name.work  { color: var(--work); }
+    .phase-name.short { color: var(--short); }
+    .phase-name.long  { color: var(--long); }
+
+    .phase-progress-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .phase-pip {
+      flex: 1;
+      height: 3px;
+      border-radius: 1px;
+      background: var(--border);
+      transition: background 0.4s;
+    }
+    .phase-pip.work.done   { background: var(--work); }
+    .phase-pip.short.done  { background: var(--short); }
+    .phase-pip.long.done   { background: var(--long); }
+    .phase-pip.active      { background: var(--accent); }
+
+    footer {
+      padding: 20px 40px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a class="nav-brand" href="index.html">E-Ink Helper</a>
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="timer.html">Timer</a></li>
+      <li><a href="pomodoro.html" class="active">Pomodoro</a></li>
+    </ul>
+  </nav>
+
+  <div class="page">
+    <div class="layout">
+
+      <!-- ── Step 1: Preset ── -->
+      <div class="step active" id="step1">
+        <div class="step-header" onclick="toggleStep(1)">
+          <div class="step-num">1</div>
+          <div class="step-title">
+            <h3>Choose a rhythm</h3>
+            <p>Start with a preset or customise below</p>
+          </div>
+          <span class="step-summary" id="sum1"></span>
+        </div>
+        <div class="step-body">
+          <div class="presets">
+            <button class="preset-chip" onclick="applyPreset(25,5,15,4,this)">Classic · 25/5</button>
+            <button class="preset-chip" onclick="applyPreset(50,10,20,4,this)">Deep work · 50/10</button>
+            <button class="preset-chip" onclick="applyPreset(90,20,30,2,this)">Flow state · 90/20</button>
+            <button class="preset-chip" onclick="applyPreset(15,3,10,4,this)">Quick · 15/3</button>
+            <button class="preset-chip" onclick="applyPreset(0,0,0,0,this)">Custom</button>
+          </div>
+          <button class="btn btn-next" onclick="nextStep(1)">Confirm rhythm →</button>
+        </div>
+      </div>
+
+      <!-- ── Step 2: Durations ── -->
+      <div class="step" id="step2">
+        <div class="step-header" onclick="toggleStep(2)">
+          <div class="step-num">2</div>
+          <div class="step-title">
+            <h3>Set durations</h3>
+            <p>Drag to adjust each phase</p>
+          </div>
+          <span class="step-summary" id="sum2"></span>
+        </div>
+        <div class="step-body">
+          <div class="sliders">
+            <div class="slider-row">
+              <div class="slider-label">
+                <span>Work</span>
+                <span class="slider-val work" id="workVal">25 min</span>
+              </div>
+              <input type="range" id="workRange" min="5" max="120" value="25" step="5" oninput="updateSliders()">
+            </div>
+            <div class="slider-row">
+              <div class="slider-label">
+                <span>Short break</span>
+                <span class="slider-val short" id="shortVal">5 min</span>
+              </div>
+              <input type="range" id="shortRange" min="1" max="30" value="5" step="1" oninput="updateSliders()">
+            </div>
+            <div class="slider-row">
+              <div class="slider-label">
+                <span>Long break</span>
+                <span class="slider-val long" id="longVal">15 min</span>
+              </div>
+              <input type="range" id="longRange" min="5" max="60" value="15" step="5" oninput="updateSliders()">
+            </div>
+          </div>
+          <button class="btn btn-next" onclick="nextStep(2)">Lock durations →</button>
+        </div>
+      </div>
+
+      <!-- ── Step 3: Cycles ── -->
+      <div class="step" id="step3">
+        <div class="step-header" onclick="toggleStep(3)">
+          <div class="step-num">3</div>
+          <div class="step-title">
+            <h3>How many cycles?</h3>
+            <p>Work + short break = one cycle</p>
+          </div>
+          <span class="step-summary" id="sum3"></span>
+        </div>
+        <div class="step-body">
+          <div class="cycle-picker">
+            <button class="cycle-btn" onclick="changeCycles(-1)">−</button>
+            <div class="cycle-display" id="cycleDisplay">4</div>
+            <button class="cycle-btn" onclick="changeCycles(1)">+</button>
+            <span class="cycle-label">cycles before<br>long break</span>
+          </div>
+          <button class="btn btn-next" onclick="nextStep(3)">Set cycles →</button>
+        </div>
+      </div>
+
+      <!-- ── Step 4: Preview ── -->
+      <div class="step" id="step4">
+        <div class="step-header" onclick="toggleStep(4)">
+          <div class="step-num">4</div>
+          <div class="step-title">
+            <h3>Review sequence</h3>
+            <p>Your full session at a glance</p>
+          </div>
+          <span class="step-summary" id="sum4"></span>
+        </div>
+        <div class="step-body">
+          <div class="sequence-preview" id="seqPreview"></div>
+          <div class="total-time" id="totalTime"></div>
+          <button class="btn btn-next" onclick="nextStep(4)">Looks good →</button>
+        </div>
+      </div>
+
+      <!-- ── Step 5: Connect & Start ── -->
+      <div class="step" id="step5">
+        <div class="step-header" onclick="toggleStep(5)">
+          <div class="step-num">5</div>
+          <div class="step-title">
+            <h3>Connect & begin</h3>
+            <p>Plug in the Pi and start your session</p>
+          </div>
+          <span class="step-summary" id="sum5"></span>
+        </div>
+        <div class="step-body">
+          <div class="connect-row">
+            <button class="btn btn-primary" id="connectBtn" onclick="connect()">Connect via USB</button>
+            <button class="btn btn-outline-success" id="startBtn" onclick="startPomodoro()" disabled>Begin Session</button>
+            <button class="btn btn-outline-danger"  id="clearBtn"  onclick="clearDisplay()" disabled>Clear Display</button>
+          </div>
+          <div class="status" id="status"></div>
+          <div class="code-area" id="codeArea">
+            <p>Confirm on device</p>
+            <span id="connectCode"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Running panel ── -->
+      <div class="running-panel" id="runningPanel">
+        <div class="running-block">
+          <div class="current-phase">
+            <div>
+              <div class="phase-label">Current phase</div>
+              <div class="phase-name" id="phaseName">—</div>
+            </div>
+            <div style="text-align:right">
+              <div class="phase-label">Phase</div>
+              <div class="phase-label" id="phaseCount" style="color:var(--text);font-size:16px;margin-top:4px;">—</div>
+            </div>
+          </div>
+          <div class="phase-progress-row" id="phasePips"></div>
+        </div>
+        <button class="btn btn-outline-danger" onclick="stopSession()">End Session</button>
+      </div>
+
+    </div>
+  </div>
+
+  <footer>E-Ink Helper &nbsp;·&nbsp; Pomodoro &nbsp;·&nbsp; Chrome only</footer>
+
+<script>
+// ── State ──
+let cycles = 4;
+let currentStep = 1;
+
+let port = null;
+let writer = null;
+let reader = null;
+let connected = false;
+let readBuffer = "";
+
+let sequence = [];       // array of {type, seconds, label}
+let seqIndex = 0;
+let sessionRunning = false;
+let phaseTimeout = null;
+
+// ── Step navigation ──
+function toggleStep(n) {
+  if (n === currentStep) return;
+  openStep(n);
+}
+
+function openStep(n) {
+  document.querySelectorAll('.step').forEach((s, i) => {
+    s.classList.remove('active');
+    if (i + 1 < n) s.classList.add('done');
+    else s.classList.remove('done');
+  });
+  document.getElementById('step' + n).classList.add('active');
+  currentStep = n;
+  if (n === 4) buildPreview();
+}
+
+function nextStep(n) {
+  const el = document.getElementById('step' + n);
+  el.classList.remove('active');
+  el.classList.add('done');
+  updateSummary(n);
+  openStep(n + 1);
+}
+
+function updateSummary(n) {
+  const work  = parseInt(document.getElementById('workRange').value);
+  const short = parseInt(document.getElementById('shortRange').value);
+  const long  = parseInt(document.getElementById('longRange').value);
+
+  if (n === 1) document.getElementById('sum1').textContent = getSelectedPresetName();
+  if (n === 2) document.getElementById('sum2').textContent = `${work}m / ${short}m / ${long}m`;
+  if (n === 3) document.getElementById('sum3').textContent = `${cycles} cycles`;
+  if (n === 4) {
+    const total = (work * cycles + short * (cycles - 1) + long) * 60;
+    document.getElementById('sum4').textContent = formatDuration(total);
+  }
+}
+
+// ── Presets ──
+let selectedPresetEl = null;
+let selectedPresetName = 'Custom';
+
+function applyPreset(work, short, long, c, el) {
+  if (selectedPresetEl) selectedPresetEl.classList.remove('selected');
+  el.classList.add('selected');
+  selectedPresetEl = el;
+  selectedPresetName = el.textContent.split('·')[0].trim();
+
+  if (work === 0) return; // Custom — just deselects others
+  document.getElementById('workRange').value  = work;
+  document.getElementById('shortRange').value = short;
+  document.getElementById('longRange').value  = long;
+  cycles = c;
+  document.getElementById('cycleDisplay').textContent = c;
+  updateSliders();
+}
+
+function getSelectedPresetName() {
+  return selectedPresetName;
+}
+
+// ── Sliders ──
+function updateSliders() {
+  const w = document.getElementById('workRange').value;
+  const s = document.getElementById('shortRange').value;
+  const l = document.getElementById('longRange').value;
+  document.getElementById('workVal').textContent  = w + ' min';
+  document.getElementById('shortVal').textContent = s + ' min';
+  document.getElementById('longVal').textContent  = l + ' min';
+}
+
+// ── Cycles ──
+function changeCycles(delta) {
+  cycles = Math.max(1, Math.min(12, cycles + delta));
+  document.getElementById('cycleDisplay').textContent = cycles;
+}
+
+// ── Sequence preview ──
+function buildSequence() {
+  const work  = parseInt(document.getElementById('workRange').value) * 60;
+  const short = parseInt(document.getElementById('shortRange').value) * 60;
+  const long  = parseInt(document.getElementById('longRange').value) * 60;
+
+  sequence = [];
+  for (let i = 0; i < cycles; i++) {
+    sequence.push({ type: 'work',  seconds: work,  label: 'Work' });
+    if (i < cycles - 1) {
+      sequence.push({ type: 'short', seconds: short, label: 'Short break' });
+    }
+  }
+  sequence.push({ type: 'long', seconds: long, label: 'Long break' });
+  return sequence;
+}
+
+function buildPreview() {
+  const seq = buildSequence();
+  const container = document.getElementById('seqPreview');
+  container.innerHTML = '';
+
+  seq.forEach((block, i) => {
+    if (i > 0) {
+      const arrow = document.createElement('span');
+      arrow.className = 'seq-arrow';
+      arrow.textContent = '→';
+      container.appendChild(arrow);
+    }
+    const el = document.createElement('div');
+    el.className = `seq-block ${block.type}`;
+    el.textContent = block.label + ' · ' + formatDuration(block.seconds);
+    container.appendChild(el);
+  });
+
+  const total = seq.reduce((a, b) => a + b.seconds, 0);
+  document.getElementById('totalTime').textContent = 'Total session: ' + formatDuration(total);
+}
+
+function formatDuration(secs) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+// ── USB Serial ──
+function setStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = 'status' + (type ? ` ${type}` : '');
+}
+
+function generateCode() {
+  return String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+}
+
+async function sendCommand(cmd) {
+  if (!writer) return;
+  await writer.write(new TextEncoder().encode(cmd + '\n'));
+}
+
+async function readLoop() {
+  const decoder = new TextDecoder();
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      readBuffer += decoder.decode(value);
+      const lines = readBuffer.split('\n');
+      readBuffer = lines.pop();
+      for (const line of lines) {
+        const msg = line.trim();
+        if (!msg) continue;
+        console.log('Pi:', msg);
+        if (msg === 'OK:CLEARED') {
+          setStatus('Display cleared');
+        }
+      }
+    }
+  } catch (e) {
+    handleDisconnect();
+  }
+}
+
+function handleDisconnect() {
+  connected = false;
+  writer = null;
+  reader = null;
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('clearBtn').disabled = true;
+  document.getElementById('connectBtn').textContent = 'Connect via USB';
+  setStatus('Disconnected — replug and reconnect', 'danger');
+}
+
+async function connect() {
+  try {
+    setStatus('Waiting for port…', 'warning');
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+
+    writer = port.writable.getWriter();
+    reader = port.readable.getReader();
+    connected = true;
+
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('clearBtn').disabled = false;
+    document.getElementById('connectBtn').textContent = 'Reconnect';
+    setStatus('Connected via USB', 'success');
+
+    const code = generateCode();
+    document.getElementById('connectCode').textContent = code;
+    document.getElementById('codeArea').style.display = 'block';
+    setTimeout(() => { document.getElementById('codeArea').style.display = 'none'; }, 6000);
+
+    await sendCommand(`CONNECT:${code}`);
+    readLoop();
+    port.addEventListener('disconnect', handleDisconnect);
+
+  } catch (e) {
+    console.error(e);
+    setStatus('Connection failed — is the Pi plugged in?', 'danger');
+  }
+}
+
+// ── Pomodoro runner ──
+function buildPips() {
+  const container = document.getElementById('phasePips');
+  container.innerHTML = '';
+  sequence.forEach((block, i) => {
+    const pip = document.createElement('div');
+    pip.className = `phase-pip ${block.type}`;
+    pip.id = `pip-${i}`;
+    container.appendChild(pip);
+  });
+}
+
+function updateRunningUI() {
+  if (seqIndex >= sequence.length) {
+    finishSession();
+    return;
+  }
+  const block = sequence[seqIndex];
+
+  const nameEl = document.getElementById('phaseName');
+  nameEl.textContent = block.label;
+  nameEl.className = `phase-name ${block.type}`;
+
+  document.getElementById('phaseCount').textContent =
+    `${seqIndex + 1} / ${sequence.length}`;
+
+  // Update pips
+  sequence.forEach((_, i) => {
+    const pip = document.getElementById(`pip-${i}`);
+    pip.classList.remove('done', 'active');
+    if (i < seqIndex) pip.classList.add('done');
+    else if (i === seqIndex) pip.classList.add('active');
+  });
+}
+
+async function startPomodoro() {
+  if (!connected) return;
+  buildSequence();
+  buildPips();
+  seqIndex = 0;
+  sessionRunning = true;
+
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('runningPanel').classList.add('visible');
+
+  runPhase();
+}
+
+async function runPhase() {
+  if (!sessionRunning || seqIndex >= sequence.length) {
+    finishSession();
+    return;
+  }
+
+  const block = sequence[seqIndex];
+  updateRunningUI();
+  setStatus(`Phase ${seqIndex + 1}/${sequence.length} · ${block.label}`, 'success');
+
+  await sendCommand(`START:${block.seconds}`);
+
+  phaseTimeout = setTimeout(async () => {
+    seqIndex++;
+    if (seqIndex < sequence.length) {
+      await sendCommand('CLEAR');
+      await new Promise(r => setTimeout(r, 1500)); // brief pause between phases
+      runPhase();
+    } else {
+      finishSession();
+    }
+  }, block.seconds * 1000);
+}
+
+async function finishSession() {
+  sessionRunning = false;
+  document.getElementById('phaseName').textContent = 'Session complete';
+  document.getElementById('phaseName').className = 'phase-name';
+  document.getElementById('phaseCount').textContent = '';
+
+  // Mark all pips done
+  sequence.forEach((block, i) => {
+    const pip = document.getElementById(`pip-${i}`);
+    pip.classList.remove('active');
+    pip.classList.add('done');
+  });
+
+  setStatus('Session complete — great work', 'success');
+  await sendCommand('CLEAR');
+  document.getElementById('startBtn').disabled = false;
+}
+
+async function stopSession() {
+  sessionRunning = false;
+  if (phaseTimeout) { clearTimeout(phaseTimeout); phaseTimeout = null; }
+  seqIndex = 0;
+  document.getElementById('runningPanel').classList.remove('visible');
+  document.getElementById('startBtn').disabled = false;
+  setStatus('Session stopped');
+  await sendCommand('CLEAR');
+}
+
+async function clearDisplay() {
+  if (!connected) return;
+  await sendCommand('CLEAR');
+  setStatus('Clearing…', 'warning');
+}
+
+// Init sliders
+updateSliders();
+</script>
+</body>
+</html>
